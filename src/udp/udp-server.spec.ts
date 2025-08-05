@@ -70,7 +70,7 @@ describe('UdpServer', () => {
     client.on('message', (msg) => {
       const response = JSON.parse(msg.toString());
       expect(response.status).toBe('active');
-      expect(response.server).toBe('UDP Server on port 5000');
+      expect(response.server).toBe('UDP Server on port 5001');
       expect(response.timestamp).toBeDefined();
       done();
     });
