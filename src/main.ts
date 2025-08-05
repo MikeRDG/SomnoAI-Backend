@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { UdpServer } from './udp/udp-server';
 
 async function bootstrap() {
-  const httpPort = process.env.PORT ?? 3000;
+  const httpPort = 80;
   const udpPort = parseInt(process.env.UDP_PORT ?? '5000');
 
   const app = await NestFactory.create(AppModule);
