@@ -51,7 +51,7 @@ export class UdpServer {
           response = {
             status: 'active',
             timestamp: new Date().toISOString(),
-            server: 'UDP Server on port 5000'
+            server: `UDP Server on port ${this.port}`
           };
           break;
         default:
