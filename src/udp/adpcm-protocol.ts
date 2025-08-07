@@ -10,6 +10,13 @@ export interface ClientSession {
   receivedData: Buffer[];
   totalDataSize: number;
   lastActivity: number;
+  sendingData?: {
+    data: Buffer;
+    totalPackets: number;
+    currentPacket: number;
+    offset: number;
+    rinfo: dgram.RemoteInfo;
+  };
 }
 
 export class AdpcmProtocolHandler {
@@ -131,8 +138,48 @@ export class AdpcmProtocolHandler {
 
   private handleReadySignal(msg: Buffer, session: ClientSession, rinfo: dgram.RemoteInfo): void {
     if (msg.equals(this.READY_SIGNAL)) {
-      console.log(`Received ready signal from ${rinfo.address}:${rinfo.port}`);
-      // Client is ready to receive data, continue sending if we have more packets
+      console.log(`Received ready signal from ${rinfo.address}:${rinfo.port}, session state: ${session.state}`);
+      
+      // Only process ready signals during the download phase (when server is sending data back)
+      if (session.state === 'ready_to_send' && session.sendingData) {
+        const { data, totalPackets, currentPacket, offset } = session.sendingData;
+        const maxPayloadSize = this.MAX_PACKET_SIZE - 2;
+        
+        if (offset < data.length) {
+          const remainingData = data.length - offset;
+          const payloadSize = Math.min(maxPayloadSize, remainingData);
+          const payload = data.subarray(offset, offset + payloadSize);
+          
+          const isLastPacket = (offset + payloadSize) >= data.length;
+          const header = isLastPacket ? this.FINAL_PACKET : this.CONTINUE_PACKET;
+          
+          const packet = Buffer.concat([header, payload]);
+          
+          console.log(`Sending packet ${currentPacket + 1}/${totalPackets}, size: ${packet.length}, isLast: ${isLastPacket}`);
+          
+          this.server.send(packet, rinfo.port, rinfo.address, (err) => {
+            if (err) {
+              console.error('Error sending packet:', err);
+            } else {
+              console.log(`Packet ${currentPacket + 1} sent successfully`);
+              
+              // Update session state
+              session.sendingData.currentPacket = currentPacket + 1;
+              session.sendingData.offset = offset + payloadSize;
+              
+              if (isLastPacket) {
+                console.log('Final packet sent, resetting session');
+                session.state = 'waiting_header';
+                session.receivedData = [];
+                session.totalDataSize = 0;
+                delete session.sendingData;
+              }
+            }
+          });
+        }
+      } else {
+        console.log(`Ready signal ignored - session not in download phase (state: ${session.state})`);
+      }
     }
   }
 
@@ -199,6 +246,15 @@ export class AdpcmProtocolHandler {
     let currentPacket = 0;
     let offset = 0;
 
+    // Store the sending state in the session
+    session.sendingData = {
+      data: data,
+      totalPackets: totalPackets,
+      currentPacket: currentPacket,
+      offset: offset,
+      rinfo: rinfo
+    };
+
     const sendNextPacket = () => {
       if (offset >= data.length) {
         console.log('All data sent successfully');
@@ -206,6 +262,7 @@ export class AdpcmProtocolHandler {
         session.state = 'waiting_header';
         session.receivedData = [];
         session.totalDataSize = 0;
+        delete session.sendingData;
         return;
       }
 
@@ -228,19 +285,22 @@ export class AdpcmProtocolHandler {
           currentPacket++;
           offset += payloadSize;
           
-          if (!isLastPacket) {
-            // Wait for ready signal before sending next packet
-            setTimeout(() => {
-              // For now, automatically send next packet after small delay
-              // In production, this should wait for actual ready signal
-              sendNextPacket();
-            }, 100);
-          } else {
+          // Update session state
+          if (session.sendingData) {
+            session.sendingData.currentPacket = currentPacket;
+            session.sendingData.offset = offset;
+          }
+          
+          if (isLastPacket) {
             // Reset session after final packet
+            console.log('Final packet sent, resetting session');
             session.state = 'waiting_header';
             session.receivedData = [];
             session.totalDataSize = 0;
+            delete session.sendingData;
           }
+          // For non-final packets, we'll wait for the ready signal
+          // which will be handled in handleReadySignal method
         }
       });
     };
