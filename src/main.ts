@@ -8,7 +8,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   await app.listen(httpPort);
-  console.log(`HTTP Server running on 0.0.0.0:${httpPort}`);
+  console.log(`Server running on 0.0.0.0:${httpPort}`);
 
   const udpServer = new UdpServer(udpPort);
   await udpServer.start();
