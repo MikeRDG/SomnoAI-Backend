@@ -1,12 +1,15 @@
 import * as dgram from 'dgram';
+import { AdpcmProtocolHandler } from './adpcm-protocol';
 
 export class UdpServer {
   private server: dgram.Socket;
   private port: number;
+  private protocolHandler: AdpcmProtocolHandler;
 
   constructor(port: number = 5000) {
     this.port = port;
     this.server = dgram.createSocket('udp4');
+    this.protocolHandler = new AdpcmProtocolHandler(this.server);
     this.setupEventHandlers();
   }
 
@@ -17,67 +20,17 @@ export class UdpServer {
     });
 
     this.server.on('message', (msg, rinfo) => {
-      console.log(`UDP Server got: ${msg} from ${rinfo.address}:${rinfo.port}`);
-      this.handleMessage(msg, rinfo);
+      console.log(`UDP Server received ${msg.length} bytes from ${rinfo.address}:${rinfo.port}`);
+      
+      // Try to handle as ADPCM protocol first
+      this.protocolHandler.handleMessage(msg, rinfo);
     });
 
     this.server.on('listening', () => {
       const address = this.server.address();
       console.log(`UDP Server listening on ${address.address}:${address.port}`);
+      console.log('ADPCM Protocol Handler initialized');
     });
-  }
-
-  private handleMessage(msg: Buffer, rinfo: dgram.RemoteInfo): void {
-    try {
-      const data = JSON.parse(msg.toString());
-      let response: any;
-
-      switch (data.pattern) {
-        case 'ping':
-          response = {
-            message: 'pong',
-            timestamp: new Date().toISOString(),
-            received: data.data
-          };
-          break;
-        case 'echo':
-          response = {
-            message: 'echo',
-            echoed: data.data,
-            timestamp: new Date().toISOString()
-          };
-          break;
-        case 'status':
-          response = {
-            status: 'active',
-            timestamp: new Date().toISOString(),
-            server: `UDP Server on port ${this.port}`
-          };
-          break;
-        default:
-          response = {
-            error: 'Unknown pattern',
-            received: data,
-            timestamp: new Date().toISOString()
-          };
-      }
-
-      const responseMsg = JSON.stringify(response);
-      this.server.send(responseMsg, rinfo.port, rinfo.address, (err) => {
-        if (err) {
-          console.log('Error sending response:', err);
-        } else {
-          console.log('Response sent:', responseMsg);
-        }
-      });
-    } catch (error) {
-      const errorResponse = JSON.stringify({
-        error: 'Invalid JSON',
-        timestamp: new Date().toISOString()
-      });
-      
-      this.server.send(errorResponse, rinfo.port, rinfo.address);
-    }
   }
 
   public start(): Promise<void> {
@@ -90,5 +43,9 @@ export class UdpServer {
 
   public stop(): void {
     this.server.close();
+  }
+
+  public getActiveSessions() {
+    return this.protocolHandler.getActiveSessions();
   }
 }
