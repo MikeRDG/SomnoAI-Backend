@@ -43,7 +43,7 @@ jobs:
 
       - name: Update ECS Service
         run: |
-          aws ecs update-service --cluster somnoai-cluster --service somnoAI-prod-task-service-i54wto95 --force-new-deployment --region eu-central-1
+          aws ecs update-service --cluster somnoai-cluster --service somnoAI-prod-task-service-qad543cu --force-new-deployment --region eu-central-1
 
       - name: Send Telegram notification on success
         uses: appleboy/telegram-action@master
@@ -56,7 +56,7 @@ jobs:
         id: wait-for-update
         run: |
           echo "Waiting for ECS service to stabilize..."
-          aws ecs wait services-stable --cluster somnoai-cluster --services somnoAI-prod-task-service-i54wto95 --region eu-central-1
+          aws ecs wait services-stable --cluster somnoai-cluster --services somnoAI-prod-task-service-qad543cu --region eu-central-1
           echo "Service has stabilized!"
 
       - name: Notify success to Telegram
