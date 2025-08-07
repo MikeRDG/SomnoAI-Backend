@@ -160,8 +160,9 @@ export class AdpcmProtocolHandler {
     // Send ACK and prepare to send response
     this.sendAck(session.dataType, rinfo);
     
-    // Load test.wav and send it back
-    this.sendTestWavFile(session, rinfo);
+    // Send back the same audio data that was received
+    console.log(`Sending received audio data back to client, size: ${data.length} bytes`);
+    this.sendDataToClient(data, session, rinfo);
   }
 
   private processBinData(data: Buffer, session: ClientSession, rinfo: dgram.RemoteInfo): void {
@@ -188,24 +189,6 @@ export class AdpcmProtocolHandler {
     session.state = 'waiting_header';
     session.receivedData = [];
     session.totalDataSize = 0;
-  }
-
-  private sendTestWavFile(session: ClientSession, rinfo: dgram.RemoteInfo): void {
-    const testWavPath = path.join(process.cwd(), 'test.wav');
-    
-    if (!fs.existsSync(testWavPath)) {
-      console.log('test.wav not found, cannot send audio response');
-      // Reset session
-      session.state = 'waiting_header';
-      session.receivedData = [];
-      session.totalDataSize = 0;
-      return;
-    }
-
-    const wavData = fs.readFileSync(testWavPath);
-    console.log(`Sending test.wav back to client, size: ${wavData.length} bytes`);
-    
-    this.sendDataToClient(wavData, session, rinfo);
   }
 
   private sendDataToClient(data: Buffer, session: ClientSession, rinfo: dgram.RemoteInfo): void {
